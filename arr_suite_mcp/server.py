@@ -14,6 +14,7 @@ from .clients import (
     BazarrClient,
     OverseerrClient,
     PlexClient,
+    JackettClient,
     ArrClientError,
 )
 from .routers import IntentRouter
@@ -93,6 +94,14 @@ class ArrSuiteMCPServer:
                 max_retries=self.config.max_retries,
             )
 
+        if self.config.jackett and self.config.jackett.api_key:
+            self.clients["jackett"] = JackettClient(
+                base_url=self.config.jackett.base_url,
+                api_key=self.config.jackett.api_key,
+                timeout=self.config.request_timeout,
+                max_retries=self.config.max_retries,
+            )
+
     def _register_handlers(self) -> None:
         """Register MCP protocol handlers."""
 
@@ -164,6 +173,8 @@ class ArrSuiteMCPServer:
                 tools.extend(self._get_overseerr_tools())
             if "plex" in self.clients:
                 tools.extend(self._get_plex_tools())
+            if "jackett" in self.clients:
+                tools.extend(self._get_jackett_tools())
 
             return tools
 
@@ -193,6 +204,8 @@ class ArrSuiteMCPServer:
                     result = await self._handle_overseerr_tool(name, arguments)
                 elif name.startswith("plex_"):
                     result = await self._handle_plex_tool(name, arguments)
+                elif name.startswith("jackett_"):
+                    result = await self._handle_jackett_tool(name, arguments)
                 else:
                     result = {"error": f"Unknown tool: {name}"}
 
@@ -507,6 +520,11 @@ class ArrSuiteMCPServer:
 
     def _handle_list_services(self) -> dict[str, Any]:
         """List all configured services."""
+        # Derive service names from the config model fields rather than a hardcoded list
+        service_names = [
+            name for name in self.config.model_fields
+            if name not in {"request_timeout", "max_retries", "log_level"}
+        ]
         return {
             "enabled_services": self.config.enabled_services,
             "services": {
@@ -518,15 +536,7 @@ class ArrSuiteMCPServer:
                         else None
                     ),
                 }
-                for name in [
-                    "sonarr",
-                    "radarr",
-                    "prowlarr",
-                    "bazarr",
-                    "overseerr",
-                    "plex",
-                    "jackett",
-                ]
+                for name in service_names
             },
         }
 
@@ -691,6 +701,50 @@ class ArrSuiteMCPServer:
             return await client.scan_library(arguments["section_id"])
         elif name == "plex_mark_watched":
             return await client.mark_watched(arguments["rating_key"])
+
+    def _get_jackett_tools(self) -> list[Tool]:
+        """Get Jackett-specific tools."""
+        return [
+            Tool(
+                name="jackett_search",
+                description="Search for releases across all Jackett indexers",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "query": {"type": "string", "description": "Search query"},
+                        "indexer": {
+                            "type": "string",
+                            "description": "Indexer ID to search (default: all)",
+                            "default": "all",
+                        },
+                        "categories": {
+                            "type": "array",
+                            "items": {"type": "integer"},
+                            "description": "Category IDs to filter results",
+                        },
+                    },
+                    "required": ["query"],
+                },
+            ),
+            Tool(
+                name="jackett_get_indexers",
+                description="Get all configured Jackett indexers",
+                inputSchema={"type": "object", "properties": {}},
+            ),
+        ]
+
+    async def _handle_jackett_tool(self, name: str, arguments: dict) -> Any:
+        """Handle Jackett-specific tools."""
+        client = self.clients["jackett"]
+
+        if name == "jackett_search":
+            return await client.search(
+                query=arguments["query"],
+                indexer=arguments.get("indexer", "all"),
+                categories=arguments.get("categories"),
+            )
+        elif name == "jackett_get_indexers":
+            return await client.get_all_indexers()
 
     async def run(self) -> None:
         """Run the MCP server."""
