@@ -518,7 +518,15 @@ class ArrSuiteMCPServer:
                         else None
                     ),
                 }
-                for name in ["sonarr", "radarr", "prowlarr", "bazarr", "overseerr"]
+                for name in [
+                    "sonarr",
+                    "radarr",
+                    "prowlarr",
+                    "bazarr",
+                    "overseerr",
+                    "plex",
+                    "jackett",
+                ]
             },
         }
 
