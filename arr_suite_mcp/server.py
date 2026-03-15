@@ -247,6 +247,17 @@ class ArrSuiteMCPServer:
                     }
                 }
             ),
+            Tool(
+                name="sonarr_get_calendar",
+                description="Get upcoming episodes airing within a date range",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "start": {"type": "string", "description": "Start date in YYYY-MM-DD format (defaults to today)"},
+                        "end": {"type": "string", "description": "End date in YYYY-MM-DD format (defaults to 7 days from start)"}
+                    }
+                }
+            ),
         ]
 
     def _get_radarr_tools(self) -> list[Tool]:
@@ -284,6 +295,17 @@ class ArrSuiteMCPServer:
                     "type": "object",
                     "properties": {
                         "movie_id": {"type": "integer", "description": "Optional movie ID"}
+                    }
+                }
+            ),
+            Tool(
+                name="radarr_get_calendar",
+                description="Get upcoming movie releases within a date range",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "start": {"type": "string", "description": "Start date in YYYY-MM-DD format (defaults to today)"},
+                        "end": {"type": "string", "description": "End date in YYYY-MM-DD format (defaults to 7 days from start)"}
                     }
                 }
             ),
@@ -517,6 +539,11 @@ class ArrSuiteMCPServer:
             if "series_id" in arguments:
                 return await client.get_series(arguments["series_id"])
             return await client.get_all_series()
+        elif name == "sonarr_get_calendar":
+            return await client.get_calendar(
+                start=arguments.get("start"),
+                end=arguments.get("end")
+            )
 
     async def _handle_radarr_tool(self, name: str, arguments: dict) -> Any:
         """Handle Radarr-specific tools."""
@@ -530,6 +557,11 @@ class ArrSuiteMCPServer:
             if "movie_id" in arguments:
                 return await client.get_movie(arguments["movie_id"])
             return await client.get_all_movies()
+        elif name == "radarr_get_calendar":
+            return await client.get_calendar(
+                start=arguments.get("start"),
+                end=arguments.get("end")
+            )
 
     async def _handle_prowlarr_tool(self, name: str, arguments: dict) -> Any:
         """Handle Prowlarr-specific tools."""
