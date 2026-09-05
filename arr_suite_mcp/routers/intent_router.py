@@ -2,7 +2,7 @@
 
 import re
 from enum import Enum
-from typing import Optional
+from typing import Any, Optional
 from dataclasses import dataclass
 
 
@@ -12,7 +12,7 @@ class ArrService(Enum):
     RADARR = "radarr"
     PROWLARR = "prowlarr"
     BAZARR = "bazarr"
-    OVERSEERR = "overseerr"
+    SEERR = "seerr"
     PLEX = "plex"
 
 
@@ -43,7 +43,7 @@ class ArrIntent:
     service: ArrService
     operation: OperationType
     confidence: float
-    context: dict[str, any]
+    context: dict[str, Any]
 
 
 class IntentRouter:
@@ -62,15 +62,15 @@ class IntentRouter:
             "movie", "film", "radarr", "tmdb", "collection", "cinema"
         ],
         ArrService.PROWLARR: [
-            "indexer", "prowlarr", "tracker", "search engine",
+            "indexers", "indexer", "prowlarr", "tracker", "search engine",
             "torrent site", "usenet"
         ],
         ArrService.BAZARR: [
             "subtitle", "subs", "caption", "bazarr", "language",
             "translation"
         ],
-        ArrService.OVERSEERR: [
-            "request", "overseerr", "approve", "decline", "user",
+        ArrService.SEERR: [
+            "request", "seerr", "approve", "decline", "user",
             "discover", "trending"
         ],
         ArrService.PLEX: [
@@ -140,7 +140,10 @@ class IntentRouter:
         "title": [
             r"(?:titled?|named?|called)\s+['\"]([^'\"]+)['\"]",
             r"['\"]([^'\"]+)['\"]",
-            r"(?:movie|show|series)\s+([A-Z][^\.,;]+)"
+            r"(?:movie|show|series|anime)\s+([A-Z][^\.,;]+)",
+            r"(?:search\s+for|find|request|watch)\s+([A-Z][a-zA-Z0-9\s:]+?)(?:\s+(?:to|in|on|from|with)\b|[.,;?]|$)",
+            r"(?:add|get)\s+([A-Z][a-zA-Z0-9\s:]+?)(?:\s+(?:to|in|on|from|with)\b|[.,;?]|$)",
+            r"\bfor\s+([A-Z][a-zA-Z0-9\s:]+?)(?:\s+(?:to|in|on|from|with)\b|[.,;?]|$)",
         ],
         "year": [
             r"\b(19\d{2}|20\d{2})\b"
@@ -180,7 +183,7 @@ class IntentRouter:
             "Search for The Matrix" -> (RADARR, SEARCH, {title: "The Matrix"})
             "Download English subtitles for episode 3" -> (BAZARR, DOWNLOAD, {...})
             "Show all indexers" -> (PROWLARR, LIST, {})
-            "Request Dune" -> (OVERSEERR, REQUEST, {title: "Dune"})
+            "Request Dune" -> (SEERR, REQUEST, {title: "Dune"})
         """
         query_lower = query.lower()
 
@@ -216,8 +219,12 @@ class IntentRouter:
 
         # Determine best match
         if all(score == 0 for score in scores.values()):
-            # Default to Overseerr for generic requests
-            return ArrService.OVERSEERR, 0.3
+            # Default based on operation hint rather than always SEERR
+            if any(kw in query for kw in ["add", "new", "import"]):
+                return ArrService.SONARR, 0.3  # most adds are TV shows
+            elif any(kw in query for kw in ["search", "find", "lookup"]):
+                return ArrService.RADARR, 0.3  # search defaults to movies
+            return ArrService.SEERR, 0.3
 
         max_service = max(scores, key=scores.get)
         max_score = scores[max_service]
@@ -249,7 +256,7 @@ class IntentRouter:
                 ArrService.RADARR: OperationType.SEARCH,
                 ArrService.PROWLARR: OperationType.LIST,
                 ArrService.BAZARR: OperationType.SEARCH,
-                ArrService.OVERSEERR: OperationType.REQUEST,
+                ArrService.SEERR: OperationType.REQUEST,
                 ArrService.PLEX: OperationType.GET,
             }
             return default_ops.get(service, OperationType.LIST), 0.5
@@ -261,7 +268,7 @@ class IntentRouter:
 
         return max_operation, confidence
 
-    def _extract_context(self, query: str) -> dict[str, any]:
+    def _extract_context(self, query: str) -> dict[str, Any]:
         """Extract contextual information from the query."""
         context = {}
 
@@ -279,6 +286,11 @@ class IntentRouter:
         # Extract quality preferences
         if "4k" in query.lower():
             context["is_4k"] = True
+
+        # Extract Plex server name (e.g., "search Plex on tank03")
+        plex_server_match = re.search(r"plex\s+(?:on|at|from)\s+(\w+)", query, re.IGNORECASE)
+        if plex_server_match:
+            context["server"] = plex_server_match.group(1)
 
         return context
 
