@@ -6,24 +6,29 @@ This document contains information for submitting this package to the official M
 
 **Name:** arr-suite-mcp
 
-**Description:** Intelligent MCP server for Plex and the complete *arr media automation suite (Sonarr, Radarr, Prowlarr, Bazarr, Overseerr).
+**Description:** Intelligent MCP server for Plex and the complete *arr media automation suite (Sonarr, Radarr, Prowlarr, Bazarr, Seerr).
 
 **Category:** Media & Entertainment
 
-**Tags:** media, automation, sonarr, radarr, prowlarr, bazarr, overseerr, tv, movies, subtitles, plex, arr
+**Tags:** media, automation, sonarr, radarr, prowlarr, bazarr, seerr, tv, movies, subtitles, plex, arr
 
 ## Installation
 
-### Via pip (Recommended)
+### Via pip
 ```bash
 pip install arr-suite-mcp
+```
+
+### Via pipx (recommended for servers)
+```bash
+pipx install arr-suite-mcp
 ```
 
 ### Via source
 ```bash
 git clone https://github.com/shaktech786/arr-suite-mcp-server.git
 cd arr-suite-mcp-server
-pip install -e .
+pipx install . --force
 ```
 
 ## Configuration
@@ -36,7 +41,7 @@ SONARR_HOST=localhost
 SONARR_PORT=8989
 SONARR_API_KEY=your_api_key
 
-# Similar for other services: RADARR_, PROWLARR_, BAZARR_, OVERSEERR_
+# Similar for other services: RADARR_, PROWLARR_, BAZARR_, SEERR_
 ```
 
 ## Claude Desktop Configuration
@@ -67,11 +72,14 @@ SONARR_API_KEY=your_api_key
 - Supports conversational queries
 
 ### Comprehensive API Coverage
-- **Sonarr**: Full TV series management (20+ operations)
-- **Radarr**: Complete movie management (25+ operations)
-- **Prowlarr**: Indexer management and search (15+ operations)
-- **Bazarr**: Subtitle management (12+ operations)
-- **Overseerr**: Request and discovery management (15+ operations)
+- **Sonarr**: Full TV series management (30+ operations) — API v3
+- **Radarr**: Complete movie management (35+ operations) — API v3
+- **Prowlarr**: Indexer management and search (25+ operations) — API v1
+- **Bazarr**: Subtitle management (20+ operations)
+- **Seerr**: Request and discovery management (25+ operations)
+- **Plex**: Media server management (50+ operations)
+
+> **Note on API versions**: Prowlarr uses API v1 (not v3 like Sonarr/Radarr). Seerr's status endpoint is `/api/v1/status`. These differences are handled automatically by the client library.
 
 ### Database Management
 - Backup and restore capabilities
@@ -106,17 +114,17 @@ SONARR_API_KEY=your_api_key
 - `arr_execute` - Execute operations via natural language
 - `arr_explain_intent` - Understand query interpretation
 - `arr_list_services` - Show configured services
-- `arr_get_system_status` - Health check all services
+- `arr_get_system_status` - Health check all services (Sonarr, Radarr, Prowlarr, Bazarr, Seerr)
 
 ### Service-Specific Tools
 - 60+ specialized tools across all services
 - Direct API access for precise control
-- Batch operations support
+- Plex: 7 dedicated tools for library, search, sessions, scan, and watch status
 
 ## Requirements
 
 - Python 3.10+
-- At least one arr service (Sonarr, Radarr, Prowlarr, Bazarr, or Overseerr)
+- At least one arr service (Sonarr, Radarr, Prowlarr, Bazarr, or Seerr)
 - API keys for configured services
 
 ## Documentation
