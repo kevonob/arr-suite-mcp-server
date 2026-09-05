@@ -10,18 +10,19 @@ A comprehensive, production-ready MCP server for the entire arr suite has been s
 
 #### 1. **Intelligent Intent Router** (`arr_suite_mcp/routers/intent_router.py`)
 - Natural language processing for arr operations
-- Automatic service detection (Sonarr, Radarr, Prowlarr, Bazarr, Overseerr)
+- Automatic service detection (Sonarr, Radarr, Prowlarr, Bazarr, Seerr, Plex)
 - Operation type identification (search, add, delete, configure, etc.)
 - Context extraction (titles, years, quality, seasons, episodes)
 - Confidence scoring
 
 #### 2. **Comprehensive API Clients** (`arr_suite_mcp/clients/`)
 - **BaseArrClient**: Robust async HTTP client with retry logic and error handling
-- **SonarrClient**: 30+ methods for TV series management
-- **RadarrClient**: 35+ methods for movie management
-- **ProwlarrClient**: 25+ methods for indexer management
+- **SonarrClient**: 30+ methods for TV series management (API v3)
+- **RadarrClient**: 35+ methods for movie management (API v3)
+- **ProwlarrClient**: 25+ methods for indexer management (**API v1** — differs from other arr apps)
 - **BazarrClient**: 20+ methods for subtitle management
-- **OverseerrClient**: 25+ methods for request/discovery management
+- **SeerrClient**: 25+ methods for request/discovery management (**status endpoint**: `/api/v1/status`)
+- **PlexClient**: 50+ methods for Plex Media Server management (token-based auth)
 
 #### 3. **MCP Server** (`arr_suite_mcp/server.py`)
 - Full MCP protocol implementation
@@ -109,7 +110,7 @@ A comprehensive, production-ready MCP server for the entire arr suite has been s
 - Wanted subtitles tracking
 - Blacklist management
 
-**Overseerr** (25+ operations):
+**Seerr** (25+ operations):
 - Media requests and approvals
 - Discovery and trending
 - User management
@@ -189,7 +190,7 @@ arr-suite-mcp
 - Track watched status
 
 ### Automation
-- Request media through Overseerr
+- Request media through Seerr
 - Auto-download subtitles
 - Backup databases regularly
 - Sync indexers across apps
@@ -226,7 +227,7 @@ arr-suite-mcp
 │  │  API Clients                │  │
 │  │  - Sonarr    - Radarr       │  │
 │  │  - Prowlarr  - Bazarr       │  │
-│  │  - Overseerr                │  │
+│  │  - Seerr                │  │
 │  └────────┬────────────────────┘  │
 └───────────┼────────────────────────┘
             │ REST APIs
@@ -251,7 +252,6 @@ arr-suite-mcp
 4. Join the community
 
 ### Future Enhancements
-- [ ] Jackett full integration
 - [ ] Lidarr support (music)
 - [ ] Readarr support (books)
 - [ ] WebSocket support
@@ -306,7 +306,7 @@ arr-suite-mcp-server/
 │   │   ├── radarr.py          # Radarr client (35+ methods)
 │   │   ├── prowlarr.py        # Prowlarr client (25+ methods)
 │   │   ├── bazarr.py          # Bazarr client (20+ methods)
-│   │   └── overseerr.py       # Overseerr client (25+ methods)
+│   │   └── seerr.py       # Seerr client (25+ methods)
 │   ├── routers/                # Intent routing
 │   │   ├── __init__.py
 │   │   └── intent_router.py   # Natural language router
@@ -340,8 +340,25 @@ Built with:
 ## 📞 Support
 
 - 📖 [Documentation](README.md)
-- 🐛 [Issues](https://github.com/yourusername/arr-suite-mcp/issues)
-- 💬 [Discussions](https://github.com/yourusername/arr-suite-mcp/discussions)
+- 🐛 [Issues](https://github.com/shaktech786/arr-suite-mcp-server/issues)
+- 💬 [Discussions](https://github.com/shaktech786/arr-suite-mcp-server/discussions)
+
+---
+
+## 🐛 Bug Fixes
+
+### v1.0.0 — API Endpoint Corrections (2026-03-15)
+
+Two API endpoint bugs were identified and fixed in the installed package:
+
+| Service | Bug | Fix |
+|---|---|---|
+| **Prowlarr** | Used API `v3` (inherited from base class) — Prowlarr only supports `v1` | Added `__init__` to set `_api_version = "v1"` |
+| **Seerr** | Called `/api/v1/system/status` — Seerr uses `/api/v1/status` | Added `get_system_status()` override calling `status` endpoint |
+
+These caused both services to return 404 errors and appear offline in `arr_get_system_status`, even when the apps were running fine.
+
+**Fix applied**: Reinstalled package from source via `pipx install . --force` and restarted the MCP server process.
 
 ---
 
