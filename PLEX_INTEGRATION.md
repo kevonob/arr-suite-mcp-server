@@ -280,14 +280,14 @@ await mcp.call_tool("plex_mark_watched", {"rating_key": "12345"})
 Plex works seamlessly with other arr services:
 
 ### Complete Workflow
-1. **Request** media through Overseerr
+1. **Request** media through Seerr
 2. **Download** via Sonarr/Radarr
 3. **Auto-add** to Plex library
 4. **Search** and **play** in Plex
 
 ### Example: Add and Watch Movie
 ```
-1. "Request The Matrix"           (Overseerr)
+1. "Request The Matrix"           (Seerr)
 2. Wait for download...           (Radarr + qBittorrent)
 3. "Scan Movies library"          (Plex)
 4. "Search Plex for The Matrix"   (Plex)
