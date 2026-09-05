@@ -9,7 +9,7 @@ Comprehensive examples for using the Arr Suite MCP Server.
 - [Movies (Radarr)](#movies-radarr)
 - [Indexers (Prowlarr)](#indexers-prowlarr)
 - [Subtitles (Bazarr)](#subtitles-bazarr)
-- [Requests (Overseerr)](#requests-overseerr)
+- [Requests (Seerr)](#requests-seerr)
 - [Advanced Workflows](#advanced-workflows)
 - [Database Management](#database-management)
 
@@ -44,6 +44,18 @@ List all configured arr services
 ```
 Get system status for all arr services
 ```
+
+Expected output when all services are healthy:
+
+| Service | Status | Notes |
+|---|---|---|
+| Sonarr | ✅ Online | API v3 |
+| Radarr | ✅ Online | API v3 |
+| Prowlarr | ✅ Online | API v1 (differs from others) |
+| Bazarr | ✅ Online | |
+| Seerr | ✅ Online | Status at `/api/v1/status` |
+
+> If Prowlarr or Seerr appear offline but the apps are running, reinstall the package from source: `pipx install . --force` then restart the MCP server.
 
 ## TV Shows (Sonarr)
 
@@ -217,7 +229,7 @@ Test OpenSubtitles provider
 Enable YIFY Subtitles provider
 ```
 
-## Requests (Overseerr)
+## Requests (Seerr)
 
 ### Making Requests
 
@@ -284,7 +296,7 @@ Add a TV show and ensure subtitles:
 ### Complete Setup for New Media
 
 ```
-1. Request Dune in Overseerr
+1. Request Dune in Seerr
 2. Auto-approve if configured
 3. Radarr picks it up
 4. Prowlarr finds best release
@@ -390,7 +402,7 @@ The server provides helpful error messages:
 > Add Breaking Bad
 
 Error: Sonarr is not configured
-Available services: radarr, overseerr
+Available services: radarr, seerr
 
 Please configure Sonarr with SONARR_HOST, SONARR_PORT, and SONARR_API_KEY
 ```
@@ -457,7 +469,7 @@ Explain intent: "Delete all unwatched movies from 2020"
 ### With Plex
 
 ```
-1. Add media via Overseerr
+1. Add media via Seerr
 2. Monitor with Sonarr/Radarr
 3. Download via qBittorrent
 4. Subtitle with Bazarr
@@ -471,8 +483,8 @@ Explain intent: "Delete all unwatched movies from 2020"
 from arr_suite_mcp import ArrSuiteMCPServer
 
 async def auto_add_trending():
-    # Get trending from Overseerr
-    trending = await overseerr.get_trending_movies()
+    # Get trending from Seerr
+    trending = await seerr.get_trending_movies()
 
     # Add to Radarr
     for movie in trending[:10]:
