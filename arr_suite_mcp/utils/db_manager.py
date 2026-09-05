@@ -23,14 +23,29 @@ class ArrDatabaseManager:
         "bazarr": "bazarr.db",
     }
 
-    def __init__(self, config_base_path: str = "/opt/docker-media-server/config"):
+    # Valid table names per service (whitelist for PRAGMA safety)
+    _KNOWN_TABLES: dict[str, set[str]] = {
+        "sonarr": {"Series", "Episodes", "EpisodeFiles", "History", "Blocklist", "QualityProfiles", "RootFolders"},
+        "radarr": {"Movies", "MovieFiles", "History", "Blocklist", "QualityProfiles", "RootFolders"},
+        "prowlarr": {"Indexers", "History", "Applications"},
+        "bazarr": {"table_shows", "table_movies", "table_history_series", "table_history_movie"},
+    }
+
+    def __init__(self, config_base_path: str | None = None):
         """
         Initialize database manager.
 
         Args:
-            config_base_path: Base path where arr config directories are located
+            config_base_path: Base path where arr config directories are located.
+                              Falls back to ARR_CONFIG_BASE_PATH env var.
+                              Raises ValueError if neither is provided.
         """
-        self.config_base_path = Path(config_base_path)
+        path = config_base_path or os.environ.get("ARR_CONFIG_BASE_PATH")
+        if not path:
+            raise ValueError(
+                "config_base_path must be provided or ARR_CONFIG_BASE_PATH env var must be set."
+            )
+        self.config_base_path = Path(path)
 
     def get_db_path(self, service: str) -> Path:
         """
@@ -207,6 +222,9 @@ class ArrDatabaseManager:
         Returns:
             List of column information
         """
+        allowed = self._KNOWN_TABLES.get(service, set())
+        if table_name not in allowed:
+            raise ValueError(f"Unknown table '{table_name}' for service '{service}'.")
         query = f"PRAGMA table_info({table_name})"
         return await self.execute_query(service, query)
 
