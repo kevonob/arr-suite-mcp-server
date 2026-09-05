@@ -8,9 +8,13 @@ class BazarrClient(BaseArrClient):
     """Client for interacting with Bazarr API."""
 
     def __init__(self, base_url: str, api_key: str, timeout: int = 30, max_retries: int = 3):
-        """Initialize Bazarr client (uses v4 API)."""
+        """Initialize Bazarr client (no versioned API path)."""
         super().__init__(base_url, api_key, timeout, max_retries)
-        self._api_version = "v4"  # Bazarr uses v4
+
+    def _build_url(self, endpoint: str) -> str:
+        """Build full URL for a Bazarr endpoint (no API version in path)."""
+        endpoint = endpoint.lstrip("/")
+        return f"{self.base_url}/api/{endpoint}"
 
     @property
     def service_name(self) -> str:
