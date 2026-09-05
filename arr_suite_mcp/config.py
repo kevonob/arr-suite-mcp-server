@@ -1,6 +1,7 @@
 """Configuration management for arr suite MCP server."""
 
-from typing import Optional
+import os
+from typing import Optional, List
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -56,31 +57,36 @@ class BazarrConfig(ArrServiceConfig):
     model_config = SettingsConfigDict(env_prefix="BAZARR_")
 
 
-class OverseerrConfig(ArrServiceConfig):
-    """Overseerr-specific configuration."""
+class SeerrConfig(ArrServiceConfig):
+    """Seerr-specific configuration."""
 
     port: int = Field(default=5055)
 
-    model_config = SettingsConfigDict(env_prefix="OVERSEERR_")
+    model_config = SettingsConfigDict(env_prefix="SEERR_")
 
 
-class JackettConfig(ArrServiceConfig):
-    """Jackett-specific configuration."""
+class TracearrConfig(ArrServiceConfig):
+    """Tracearr configuration — streaming access manager."""
 
-    port: int = Field(default=9117)
+    port: int = Field(default=3000)
 
-    model_config = SettingsConfigDict(env_prefix="JACKETT_")
+    model_config = SettingsConfigDict(env_prefix="TRACEARR_")
 
 
 class PlexConfig(BaseSettings):
     """Plex Media Server configuration."""
 
+    name: str = Field(default="default", description="Plex server name/identifier")
     host: str = Field(default="localhost", description="Plex server host address")
     port: int = Field(default=32400, description="Plex server port")
     token: str = Field(description="Plex authentication token")
     ssl: bool = Field(default=False, description="Use HTTPS")
 
-    model_config = SettingsConfigDict(env_prefix="PLEX_")
+    # Backwards compatibility - also support PLEX_ prefix for single server
+    model_config = SettingsConfigDict(
+        env_prefix="PLEX_",
+        extra="ignore"
+    )
 
     @property
     def base_url(self) -> str:
@@ -97,9 +103,14 @@ class ArrSuiteConfig(BaseSettings):
     radarr: Optional[RadarrConfig] = None
     prowlarr: Optional[ProwlarrConfig] = None
     bazarr: Optional[BazarrConfig] = None
-    overseerr: Optional[OverseerrConfig] = None
-    jackett: Optional[JackettConfig] = None
+    seerr: Optional[SeerrConfig] = None
+    tracearr: Optional[TracearrConfig] = None
+
+    # Legacy single plex config (for backwards compatibility)
     plex: Optional[PlexConfig] = None
+    
+    # Multiple plex servers support
+    plex_servers: List[PlexConfig] = []
 
     # Global settings
     request_timeout: int = Field(default=30, description="API request timeout in seconds")
@@ -139,19 +150,69 @@ class ArrSuiteConfig(BaseSettings):
             pass
 
         try:
-            self.overseerr = OverseerrConfig()
+            self.seerr = SeerrConfig()
         except Exception:
             pass
 
         try:
-            self.jackett = JackettConfig()
+            self.tracearr = TracearrConfig()
         except Exception:
             pass
 
+        # Backwards compatibility: try to load single PLEX_ config
         try:
             self.plex = PlexConfig()
+            # If we have a single plex config, add it to plex_servers
+            if self.plex and self.plex.token:
+                self.plex_servers.append(self.plex)
         except Exception:
             pass
+
+        # Load multiple Plex servers from PLEX_1_, PLEX_2_, etc.
+        self._load_plex_servers()
+
+    def _load_plex_servers(self) -> None:
+        """Load multiple Plex servers from numbered environment variables."""
+        # Scan for PLEX_N_ prefixed env vars
+        plex_indices = set()
+        for key in os.environ.keys():
+            if key.startswith("PLEX_") and key[5].isdigit():
+                # Extract the number (e.g., PLEX_1_HOST -> 1)
+                parts = key[5:].split("_", 1)
+                if parts[0].isdigit():
+                    plex_indices.add(int(parts[0]))
+
+        # Load each Plex server config
+        for idx in sorted(plex_indices):
+            try:
+                prefix = f"PLEX_{idx}_"
+                
+                # Create custom PlexConfig with this prefix
+                class NumberedPlexConfig(BaseSettings):
+                    name: str = Field(default=f"plex{idx}")
+                    host: str = Field(default="localhost")
+                    port: int = Field(default=32400)
+                    token: str = Field(...)
+                    ssl: bool = Field(default=False)
+                    
+                    model_config = SettingsConfigDict(env_prefix=prefix)
+                
+                config = NumberedPlexConfig()
+                if config.token:
+                    plex_config = PlexConfig(
+                        name=config.name,
+                        host=config.host,
+                        port=config.port,
+                        token=config.token,
+                        ssl=config.ssl
+                    )
+                    # Avoid duplicates (if PLEX_1_ is same as PLEX_)
+                    if not any(s.token == plex_config.token and s.host == plex_config.host for s in self.plex_servers):
+                        self.plex_servers.append(plex_config)
+                        
+            except Exception:
+                # Skip if required fields missing
+                pass
 
     @property
     def enabled_services(self) -> list[str]:
@@ -165,10 +226,23 @@ class ArrSuiteConfig(BaseSettings):
             services.append("prowlarr")
         if self.bazarr and self.bazarr.api_key:
             services.append("bazarr")
-        if self.overseerr and self.overseerr.api_key:
-            services.append("overseerr")
-        if self.jackett and self.jackett.api_key:
-            services.append("jackett")
-        if self.plex and self.plex.token:
-            services.append("plex")
+        if self.seerr and self.seerr.api_key:
+            services.append("seerr")
+        if self.tracearr and self.tracearr.api_key:
+            services.append("tracearr")
+        # Add each Plex server with its name
+        for plex in self.plex_servers:
+            if plex.token:
+                services.append(f"plex:{plex.name}")
         return services
+
+    def get_plex_config(self, name: Optional[str] = None) -> Optional[PlexConfig]:
+        """Get a specific Plex config by name, or the first one if name is None."""
+        if not self.plex_servers:
+            return None
+        if name:
+            for plex in self.plex_servers:
+                if plex.name == name:
+                    return plex
+            return None
+        return self.plex_servers[0] if self.plex_servers else None
