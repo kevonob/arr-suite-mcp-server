@@ -14,7 +14,7 @@ Open Claude Code in either project directory and try:
 List all configured arr services
 ```
 
-You should see: Sonarr, Radarr, Prowlarr, Overseerr, and Plex (pending token)
+You should see: Sonarr, Radarr, Prowlarr, Seerr, and Plex (pending token)
 
 ### 2. Try Natural Language
 
@@ -48,15 +48,15 @@ Then restart Claude Code or reload the MCP server.
 ## 📝 What's Configured
 
 ### ✅ Services Ready
-- **Sonarr** @ localhost:8989
-- **Radarr** @ localhost:7878
-- **Prowlarr** @ localhost:9696
-- **Overseerr** @ localhost:5055
+- **Sonarr** @ 192.168.1.100:8989 — API v3
+- **Radarr** @ 192.168.1.100:7878 — API v3
+- **Prowlarr** @ 192.168.1.100:9696 — API **v1** (differs from other arr apps)
+- **Seerr** @ 192.168.1.101:5055 — status at `/api/v1/status`
+- **Bazarr** @ 192.168.1.100:6767
 - **Plex** @ localhost:32400 (needs token)
 
-### ✅ MCP Configurations
-- `/opt/docker-media-server/.claude/mcp_config.json` (docker-media-server)
-- `/opt/docker-media-server/arr-suite-mcp-server/.claude/mcp_config.json` (this project)
+### ✅ MCP Configuration
+- `/claude/homelab-mcp/arr-suite/.claude/mcp_config.json`
 
 ## 🎮 Example Commands
 
@@ -70,7 +70,7 @@ Search for movies from 2023 in Radarr
 ```
 
 ```
-Request Avatar 2 through Overseerr
+Request Avatar 2 through Seerr
 ```
 
 ### System Operations
@@ -119,7 +119,7 @@ Just describe what you want:
 - "Add this movie" → Routes to Radarr
 - "Download subtitles" → Routes to Bazarr
 - "Search indexers" → Routes to Prowlarr
-- "Request media" → Routes to Overseerr
+- "Request media" → Routes to Seerr
 
 ### Intelligent Routing
 The system automatically detects:
