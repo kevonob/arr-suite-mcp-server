@@ -11,8 +11,9 @@ from .sonarr import SonarrClient
 from .radarr import RadarrClient
 from .prowlarr import ProwlarrClient
 from .bazarr import BazarrClient
-from .overseerr import OverseerrClient
+from .seerr import SeerrClient
 from .plex import PlexClient
+from .tracearr import TracearrClient
 
 __all__ = [
     "BaseArrClient",
@@ -24,6 +25,7 @@ __all__ = [
     "RadarrClient",
     "ProwlarrClient",
     "BazarrClient",
-    "OverseerrClient",
+    "SeerrClient",
     "PlexClient",
+    "TracearrClient",
 ]
