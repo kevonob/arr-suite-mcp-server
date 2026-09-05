@@ -13,8 +13,12 @@ class RadarrClient(BaseArrClient):
 
     # Movie Management
     async def get_all_movies(self) -> list[dict[str, Any]]:
-        """Get all movies in Radarr."""
-        return await self.get("movie")
+        """Get all movies in Radarr.
+
+        Uses excludeLocalCovers=true to skip per-movie filesystem stat() calls,
+        reducing response time from ~57s to ~1.4s on large libraries.
+        """
+        return await self.get("movie", params={"excludeLocalCovers": "true"})
 
     async def get_movie(self, movie_id: int) -> dict[str, Any]:
         """Get a specific movie by ID."""
