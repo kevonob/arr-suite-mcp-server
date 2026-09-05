@@ -56,3 +56,6 @@ htmlcov/
 
 # MCP
 mcp.log
+
+# mcpo config (contains API keys)
+mcpo-config.json
