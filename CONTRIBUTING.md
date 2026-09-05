@@ -16,8 +16,8 @@ Thank you for your interest in contributing! This project aims to provide the be
 ### 1. Fork and Clone
 
 ```bash
-git clone https://github.com/yourusername/arr-suite-mcp.git
-cd arr-suite-mcp
+git clone https://github.com/shaktech786/arr-suite-mcp-server.git
+cd arr-suite-mcp-server
 ```
 
 ### 2. Set Up Development Environment
