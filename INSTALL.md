@@ -5,7 +5,7 @@ Complete installation guide for the Arr Suite MCP Server.
 ## Prerequisites
 
 - Python 3.10 or higher
-- At least one arr service (Sonarr, Radarr, Prowlarr, Bazarr, or Overseerr)
+- At least one arr service (Sonarr, Radarr, Prowlarr, Bazarr, or Seerr)
 - API keys for the services you want to use
 - Claude Desktop (for MCP integration)
 
@@ -17,11 +17,22 @@ Complete installation guide for the Arr Suite MCP Server.
 pip install arr-suite-mcp
 ```
 
-### Method 2: Install from Source
+### Method 2: Install with pipx (Recommended for servers)
+
+```bash
+# Install using pipx for isolated environment
+pipx install arr-suite-mcp
+
+# To reinstall/upgrade from source
+cd /path/to/arr-suite-mcp-server
+pipx install . --force
+```
+
+### Method 3: Install from Source
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/arr-suite-mcp.git
+git clone https://gitea.yourdomain.com/arr-suite-mcp.git
 cd arr-suite-mcp
 
 # Install in development mode
@@ -29,13 +40,6 @@ pip install -e .
 
 # Or install normally
 pip install .
-```
-
-### Method 3: Docker (Coming Soon)
-
-```bash
-docker pull yourusername/arr-suite-mcp:latest
-docker run -it --env-file .env arr-suite-mcp
 ```
 
 ## Configuration
@@ -82,9 +86,9 @@ RADARR_API_KEY=your_api_key_here
 4. Scroll to **Security** section
 5. Copy the **API Key**
 
-#### For Overseerr:
+#### For Seerr:
 
-1. Open Overseerr web UI
+1. Open Seerr web UI
 2. Click **Settings**
 3. Click **General** tab
 4. Scroll to **API Key** section
@@ -196,6 +200,33 @@ This will show if all your services are reachable.
 - Check firewall settings
 - Ensure services are accessible from where you're running the MCP server
 
+### Prowlarr or Seerr Showing Offline
+
+These services use different API paths than Sonarr/Radarr:
+
+- **Prowlarr** uses API **v1** (not v3): `/api/v1/system/status`
+- **Seerr** uses `/api/v1/status` (not `/api/v1/system/status`)
+
+If running an older installed version, the wrong endpoints may be called. Fix:
+
+```bash
+# Reinstall from source to get the latest fixes
+cd /path/to/arr-suite-mcp-server
+pipx install . --force
+
+# Then restart the MCP server process
+pkill -f arr-suite-mcp
+```
+
+Verify the correct endpoints manually:
+```bash
+# Prowlarr (v1)
+curl http://YOUR_HOST:9696/api/v1/system/status?apikey=YOUR_KEY
+
+# Seerr (/status not /system/status)
+curl http://YOUR_HOST:5055/api/v1/status?apikey=YOUR_KEY
+```
+
 ### SSL Certificate Errors
 
 For local installations without SSL:
@@ -203,13 +234,18 @@ For local installations without SSL:
 ```bash
 SONARR_SSL=false
 RADARR_SSL=false
-# etc.
+PROWLARR_SSL=false
+SEERR_SSL=false
+BAZARR_SSL=false
 ```
 
 ### Import Errors
 
 ```bash
-# Reinstall with dependencies
+# Reinstall with dependencies using pipx
+pipx install arr-suite-mcp --force
+
+# Or if using pip
 pip install --force-reinstall arr-suite-mcp
 
 # Or if using source
@@ -278,6 +314,6 @@ Remove Claude Desktop configuration and `.env` files as needed.
 
 ## Getting Help
 
-- 📖 [Documentation](https://github.com/yourusername/arr-suite-mcp)
-- 🐛 [Report Issues](https://github.com/yourusername/arr-suite-mcp/issues)
-- 💬 [Discussions](https://github.com/yourusername/arr-suite-mcp/discussions)
+- 📖 [Documentation](https://github.com/shaktech786/arr-suite-mcp-server)
+- 🐛 [Report Issues](https://github.com/shaktech786/arr-suite-mcp-server/issues)
+- 💬 [Discussions](https://github.com/shaktech786/arr-suite-mcp-server/discussions)
