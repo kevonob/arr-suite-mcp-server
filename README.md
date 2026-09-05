@@ -15,9 +15,8 @@ The Arr Suite MCP Server is a powerful integration that connects AI assistants l
 - **Radarr** - Movie management
 - **Prowlarr** - Indexer management and search
 - **Bazarr** - Subtitle management
-- **Overseerr** - Media request and discovery
+- **Seerr** - Media request and discovery
 - **Plex** - Media Server management and playback
-- **Jackett** - Alternative indexer proxy (coming soon)
 
 ### Key Features
 
@@ -40,7 +39,7 @@ pip install arr-suite-mcp
 ### From Source
 
 ```bash
-git clone https://github.com/shaktech786/arr-suite-mcp-server.git
+git clone https://github.com/kevonob/arr-suite-mcp-server.git
 cd arr-suite-mcp-server
 pip install -e .
 ```
@@ -72,10 +71,10 @@ BAZARR_HOST=localhost
 BAZARR_PORT=6767
 BAZARR_API_KEY=your_bazarr_api_key
 
-# Overseerr Configuration
-OVERSEERR_HOST=localhost
-OVERSEERR_PORT=5055
-OVERSEERR_API_KEY=your_overseerr_api_key
+# Seerr Configuration
+SEERR_HOST=localhost
+SEERR_PORT=5055
+SEERR_API_KEY=your_seerr_api_key
 ```
 
 ### 2. Run the Server
@@ -146,7 +145,7 @@ The beauty of this MCP server is its natural language understanding. Here are so
 "Get subtitle providers"
 ```
 
-### Requests (Overseerr)
+### Requests (Seerr)
 
 ```
 "Request Avatar 2"
@@ -255,7 +254,7 @@ LOG_LEVEL=INFO
 2. Settings → General
 3. Security section → API Key
 
-#### Overseerr
+#### Seerr
 1. Open the web UI
 2. Settings → General
 3. API Key section
@@ -282,7 +281,7 @@ LOG_LEVEL=INFO
 │  │  ├──────────┤  ├──────────┤    │   │
 │  │  │ Prowlarr │  │ Bazarr   │    │   │
 │  │  ├──────────┤  ├──────────┤    │   │
-│  │  │Overseerr │  │  More... │    │   │
+│  │  │Seerr │  │  More... │    │   │
 │  │  └──────────┘  └──────────┘    │   │
 │  └─────────────────────────────────┘   │
 └────────────────┬────────────────────────┘
@@ -291,6 +290,92 @@ LOG_LEVEL=INFO
 │        Your Arr Stack Services          │
 │   Sonarr│Radarr│Prowlarr│Bazarr│etc.   │
 └─────────────────────────────────────────┘
+```
+
+## OpenWebUI Integration (mcpo)
+
+OpenWebUI 0.8.5+ supports external tool servers via **OpenAPI/Streamable HTTP**. Use
+[mcpo](https://github.com/open-webui/mcpo) to wrap the MCP stdio server and expose each
+tool as a standard OpenAPI endpoint.
+
+### Architecture
+
+```
+OpenWebUI (:8080)
+  └─ HTTP → mcpo (:8766)          ← OpenAPI proxy
+              └─ stdio → arr-suite-mcp
+                          ├─ Sonarr   :8989
+                          ├─ Radarr   :7878
+                          ├─ Prowlarr :9696
+                          └─ Seerr :5055
+
+supergateway SSE (:8765) → LocalAI (unchanged)
+```
+
+### Setup
+
+**1. Install mcpo**
+
+```bash
+pipx install mcpo
+```
+
+**2. Create config** (`mcpo-config.json` — not committed, contains API keys):
+
+```json
+{
+  "mcpServers": {
+    "arr-suite": {
+      "command": "/root/.local/bin/arr-suite-mcp",
+      "args": [],
+      "env": {
+        "SONARR_HOST": "...", "SONARR_PORT": "8989", "SONARR_API_KEY": "...",
+        "RADARR_HOST": "...", "RADARR_PORT": "7878", "RADARR_API_KEY": "...",
+        "PROWLARR_HOST": "...", "PROWLARR_PORT": "9696", "PROWLARR_API_KEY": "...",
+        "SEERR_HOST": "...", "SEERR_PORT": "5055", "SEERR_API_KEY": "..."
+      }
+    }
+  }
+}
+```
+
+**3. Run as systemd service** (`/etc/systemd/system/arr-suite-mcpo.service`):
+
+```ini
+[Unit]
+Description=arr-suite MCP → OpenAPI proxy for OpenWebUI
+After=network.target arr-suite-mcp.service
+
+[Service]
+Type=simple
+User=root
+ExecStart=/root/.local/bin/mcpo --port 8766 --host 0.0.0.0 \
+  --config /claude/homelab-mcp/arr-suite/mcpo-config.json
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```bash
+systemctl daemon-reload && systemctl enable --now arr-suite-mcpo
+```
+
+**4. Register in OpenWebUI** — Admin > Settings > External Tools:
+
+- URL: `http://192.168.1.100:8766/arr-suite`
+- Path: `openapi.json`
+- Type: `openapi`
+
+**Verify:**
+
+```bash
+# Service status
+systemctl status arr-suite-mcpo
+
+# OpenAPI schema (should list ~16 tool paths)
+curl http://localhost:8766/arr-suite/openapi.json | python3 -m json.tool | grep '"summary"'
 ```
 
 ## Database Management
@@ -392,7 +477,7 @@ mypy arr_suite_mcp
 ✅ Wanted Subtitles
 ✅ Blacklist
 
-### Overseerr
+### Seerr
 ✅ Request Management (create, approve, decline)
 ✅ Media Search
 ✅ Discovery (movies, TV)
@@ -407,8 +492,14 @@ mypy arr_suite_mcp
 ### Connection Issues
 
 ```bash
-# Test connectivity
+# Test Sonarr/Radarr (use v3)
 curl http://localhost:8989/api/v3/system/status?apikey=YOUR_API_KEY
+
+# Test Prowlarr (uses v1, NOT v3)
+curl http://localhost:9696/api/v1/system/status?apikey=YOUR_API_KEY
+
+# Test Seerr (uses /status, not /system/status)
+curl http://localhost:5055/api/v1/status?apikey=YOUR_API_KEY
 
 # Check logs
 arr-suite-mcp --log-level DEBUG
@@ -419,6 +510,13 @@ arr-suite-mcp --log-level DEBUG
 1. **API Key Invalid**: Double-check your API keys in the web UI
 2. **Connection Refused**: Ensure services are running and accessible
 3. **SSL Errors**: Set `{SERVICE}_SSL=false` for local deployments
+4. **Prowlarr/Seerr shows offline in `arr_get_system_status`**: Prowlarr uses the **v1** API (not v3 like Sonarr/Radarr), and Seerr's status endpoint is `/api/v1/status` (not `/api/v1/system/status`). Fix by reinstalling from source.
+5. **Bazarr shows offline in `arr_get_system_status`**: Bazarr does **not** use a versioned API path. Earlier versions incorrectly called `/api/v4/system/status` (which returns HTML), causing a JSON parse failure. Fixed in `clients/bazarr.py` by overriding `_build_url()` to produce `/api/{endpoint}` with no version segment. Reinstall from source if still affected:
+   ```bash
+   cd /path/to/arr-suite-mcp-server
+   pipx install . --force
+   # Then restart the MCP server process
+   ```
 
 ## Contributing
 
@@ -436,13 +534,12 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 ## Support
 
-- 📖 [Documentation](https://github.com/shaktech786/arr-suite-mcp-server)
-- 🐛 [Issue Tracker](https://github.com/shaktech786/arr-suite-mcp-server/issues)
-- 💬 [Discussions](https://github.com/shaktech786/arr-suite-mcp-server/discussions)
+- 📖 [Documentation](https://github.com/kevonob/arr-suite-mcp-server)
+- 🐛 [Issue Tracker](https://github.com/kevonob/arr-suite-mcp-server/issues)
+- 💬 [Discussions](https://github.com/kevonob/arr-suite-mcp-server/discussions)
 
 ## Roadmap
 
-- [ ] Jackett full integration
 - [ ] Lidarr support (music)
 - [ ] Readarr support (books)
 - [ ] Whisparr support (adult content)
