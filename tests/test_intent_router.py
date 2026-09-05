@@ -48,7 +48,7 @@ class TestIntentRouter:
         """Test parsing media request."""
         intent = router.parse_intent("Request Inception")
 
-        assert intent.service == ArrService.OVERSEERR
+        assert intent.service == ArrService.SEERR
         assert intent.operation == OperationType.REQUEST
         assert "Inception" in intent.context.get("title", "")
 
