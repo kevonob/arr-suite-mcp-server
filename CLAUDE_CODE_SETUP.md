@@ -6,27 +6,24 @@ This MCP server is now configured for use with Claude Code and VS Code (Roo/Clin
 
 ### 1. Environment Variables (`.env`)
 All your arr suite services are configured with API keys:
-- ✅ Sonarr (localhost:8989)
-- ✅ Radarr (localhost:7878)
-- ✅ Prowlarr (localhost:9696)
-- ✅ Overseerr (localhost:5055)
+- ✅ Sonarr (192.168.1.100:8989)
+- ✅ Radarr (192.168.1.100:7878)
+- ✅ Prowlarr (192.168.1.100:9696) — uses API **v1**
+- ✅ Seerr (192.168.1.101:5055) — status at `/api/v1/status`
+- ✅ Bazarr (192.168.1.100:6767)
 - ✅ Plex (localhost:32400) - **Token needed**
 
 ### 2. MCP Configuration Files Created
 
 **For this project** (`.claude/mcp_config.json`):
-- Located in `/opt/docker-media-server/arr-suite-mcp-server/.claude/`
-
-**For docker-media-server** (`.claude/mcp_config.json`):
-- Located in `/opt/docker-media-server/.claude/`
+- Located in `/claude/homelab-mcp/arr-suite/.claude/`
 
 Both configurations point to the same MCP server with all your credentials.
 
 ## 🚀 Usage in Claude Code
 
-The MCP server is automatically detected in Claude Code when you're working in either:
-- `/opt/docker-media-server/arr-suite-mcp-server/` (this project)
-- `/opt/docker-media-server/` (docker-media-server project)
+The MCP server is automatically detected in Claude Code when you're working in:
+- `/claude/homelab-mcp/arr-suite/` (this project)
 
 ### Try These Commands
 
@@ -68,12 +65,9 @@ Add to your Roo/Cline settings:
   "mcp": {
     "servers": {
       "arr-suite": {
-        "command": "python3",
-        "args": ["-m", "arr_suite_mcp.server"],
-        "cwd": "/opt/docker-media-server/arr-suite-mcp-server",
+        "command": "arr-suite-mcp",
         "env": {
-          "PYTHONPATH": "/path/to/arr-suite-mcp-server",
-          "SONARR_HOST": "localhost",
+          "SONARR_HOST": "your_sonarr_host",
           "SONARR_PORT": "8989",
           "SONARR_API_KEY": "your_sonarr_api_key_here",
           "RADARR_HOST": "localhost",
@@ -82,9 +76,9 @@ Add to your Roo/Cline settings:
           "PROWLARR_HOST": "localhost",
           "PROWLARR_PORT": "9696",
           "PROWLARR_API_KEY": "your_prowlarr_api_key_here",
-          "OVERSEERR_HOST": "localhost",
-          "OVERSEERR_PORT": "5055",
-          "OVERSEERR_API_KEY": "your_overseerr_api_key_here",
+          "SEERR_HOST": "localhost",
+          "SEERR_PORT": "5055",
+          "SEERR_API_KEY": "your_seerr_api_key_here",
           "PLEX_HOST": "localhost",
           "PLEX_PORT": "32400",
           "PLEX_TOKEN": "your_plex_token_here"
@@ -114,16 +108,15 @@ curl -X POST 'https://plex.tv/users/sign_in.json' \
 ```
 
 ### Add Token
-Once you have the token, add it to:
-1. `/opt/docker-media-server/arr-suite-mcp-server/.env`:
-   ```bash
-   PLEX_TOKEN=your_actual_token_here
-   ```
+Once you have the token, add it to your `.env` file:
+```bash
+PLEX_TOKEN=your_actual_token_here
+```
 
-2. Both `.claude/mcp_config.json` files:
-   ```json
-   "PLEX_TOKEN": "your_actual_token_here"
-   ```
+And update the MCP config environment:
+```json
+"PLEX_TOKEN": "your_actual_token_here"
+```
 
 ## 🧪 Testing the MCP Server
 
@@ -173,10 +166,10 @@ Search Radarr for movies released in 2023
 - `bazarr_search_subtitles`
 - `bazarr_download_subtitle`
 
-**Overseerr** (3 tools):
-- `overseerr_search`
-- `overseerr_request`
-- `overseerr_get_requests`
+**Seerr** (3 tools):
+- `seerr_search`
+- `seerr_request`
+- `seerr_get_requests`
 
 **Plex** (7 tools):
 - `plex_get_libraries`
@@ -193,33 +186,38 @@ Search Radarr for movies released in 2023
 
 1. Check if `.claude/mcp_config.json` exists:
    ```bash
-   ls -la /opt/docker-media-server/.claude/
-   ls -la /opt/docker-media-server/arr-suite-mcp-server/.claude/
+   ls -la /claude/homelab-mcp/arr-suite/.claude/
    ```
 
-2. Verify Python can find the module:
+2. Verify the MCP server binary is available:
    ```bash
-   cd /opt/docker-media-server/arr-suite-mcp-server
-   PYTHONPATH=/opt/docker-media-server/arr-suite-mcp-server python3 -m arr_suite_mcp.server --help
+   which arr-suite-mcp
+   arr-suite-mcp --help
    ```
 
 3. Check MCP server logs in Claude Code output panel
 
 ### Services Not Connecting
 
-Verify services are reachable:
+Verify services are reachable (note the correct API versions):
 ```bash
-curl -H "X-Api-Key: YOUR_SONARR_API_KEY" \
-  http://localhost:8989/api/v3/system/status
+# Sonarr / Radarr — v3
+curl -H "X-Api-Key: YOUR_API_KEY" http://YOUR_HOST:8989/api/v3/system/status
+
+# Prowlarr — v1 (not v3!)
+curl -H "X-Api-Key: YOUR_API_KEY" http://YOUR_HOST:9696/api/v1/system/status
+
+# Seerr — /status (not /system/status!)
+curl -H "X-Api-Key: YOUR_API_KEY" http://YOUR_HOST:5055/api/v1/status
 ```
 
-### Python Module Not Found
+### Prowlarr or Seerr Show Offline
 
-Make sure PYTHONPATH is set in the MCP config:
-```json
-"env": {
-  "PYTHONPATH": "/opt/docker-media-server/arr-suite-mcp-server"
-}
+If `arr_get_system_status` shows these services offline even when they're running, the installed package may be out of date. Reinstall from source:
+```bash
+cd /claude/homelab-mcp/arr-suite/repo
+pipx install . --force
+pkill -f arr-suite-mcp
 ```
 
 ## 🎯 Next Steps
@@ -232,10 +230,11 @@ Make sure PYTHONPATH is set in the MCP config:
 
 ## 📁 File Locations
 
-- **MCP Config (this project)**: `/opt/docker-media-server/arr-suite-mcp-server/.claude/mcp_config.json`
-- **MCP Config (docker-media-server)**: `/opt/docker-media-server/.claude/mcp_config.json`
-- **Environment Variables**: `/opt/docker-media-server/arr-suite-mcp-server/.env`
-- **Server Code**: `/opt/docker-media-server/arr-suite-mcp-server/arr_suite_mcp/`
+- **MCP Config**: `/claude/homelab-mcp/arr-suite/.claude/mcp_config.json`
+- **Environment Variables**: `/claude/homelab-mcp/arr-suite/repo/.env`
+- **Server Code**: `/claude/homelab-mcp/arr-suite/repo/arr_suite_mcp/`
+- **Installed Binary**: `/root/.local/bin/arr-suite-mcp`
+- **Installed Package**: `/root/.local/share/pipx/venvs/arr-suite-mcp/`
 
 ## 💡 Pro Tips
 
