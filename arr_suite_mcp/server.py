@@ -2,18 +2,19 @@
 
 import logging
 import asyncio
-from typing import Any, Optional
+from typing import Any, Optional, Dict, List
 from mcp.server import Server
 from mcp.types import Tool, TextContent, ImageContent, EmbeddedResource
 
-from .config import ArrSuiteConfig
+from .config import ArrSuiteConfig, PlexConfig
 from .clients import (
     SonarrClient,
     RadarrClient,
     ProwlarrClient,
     BazarrClient,
-    OverseerrClient,
+    SeerrClient,
     PlexClient,
+    TracearrClient,
     ArrClientError
 )
 from .routers import IntentRouter, ArrIntent
@@ -34,6 +35,7 @@ class ArrSuiteMCPServer:
 
         # Initialize clients
         self.clients: dict[str, Any] = {}
+        self.plex_clients: dict[str, PlexClient] = {}  # Multiple Plex servers
         self._initialize_clients()
 
         # Register MCP handlers
@@ -75,21 +77,49 @@ class ArrSuiteMCPServer:
                 max_retries=self.config.max_retries
             )
 
-        if self.config.overseerr and self.config.overseerr.api_key:
-            self.clients["overseerr"] = OverseerrClient(
-                base_url=self.config.overseerr.base_url,
-                api_key=self.config.overseerr.api_key,
+        if self.config.seerr and self.config.seerr.api_key:
+            self.clients["seerr"] = SeerrClient(
+                base_url=self.config.seerr.base_url,
+                api_key=self.config.seerr.api_key,
                 timeout=self.config.request_timeout,
                 max_retries=self.config.max_retries
             )
 
-        if self.config.plex and self.config.plex.token:
-            self.clients["plex"] = PlexClient(
-                base_url=self.config.plex.base_url,
-                token=self.config.plex.token,
+        if self.config.tracearr and self.config.tracearr.api_key:
+            self.clients["tracearr"] = TracearrClient(
+                base_url=self.config.tracearr.base_url,
+                api_key=self.config.tracearr.api_key,
                 timeout=self.config.request_timeout,
-                max_retries=self.config.max_retries
             )
+
+        # Initialize all Plex servers
+        for plex_config in self.config.plex_servers:
+            if plex_config.token:
+                plex_client = PlexClient(
+                    base_url=plex_config.base_url,
+                    token=plex_config.token,
+                    timeout=self.config.request_timeout,
+                    max_retries=self.config.max_retries
+                )
+                # Store by name for multi-server access
+                self.plex_clients[plex_config.name] = plex_client
+                # Also store in main clients for backwards compatibility (use "plex" for first/default)
+                if "plex" not in self.clients:
+                    self.clients["plex"] = plex_client
+
+    def _get_default_plex_client(self) -> Optional[PlexClient]:
+        """Get the default Plex client (first one or named 'default')."""
+        if "default" in self.plex_clients:
+            return self.plex_clients["default"]
+        if self.plex_clients:
+            return next(iter(self.plex_clients.values()))
+        return None
+
+    def _get_plex_client(self, name: Optional[str] = None) -> Optional[PlexClient]:
+        """Get a specific Plex client by name, or the default if name is None."""
+        if name:
+            return self.plex_clients.get(name)
+        return self._get_default_plex_client()
 
     def _register_handlers(self) -> None:
         """Register MCP protocol handlers."""
@@ -103,7 +133,7 @@ class ArrSuiteMCPServer:
                     description=(
                         "Execute arr suite operations using natural language. "
                         "Intelligently routes to the correct service (Sonarr, Radarr, "
-                        "Prowlarr, Bazarr, or Overseerr) based on your request. "
+                        "Prowlarr, Bazarr, or Seerr) based on your request. "
                         "Examples: 'add Breaking Bad', 'search for The Matrix', "
                         "'download English subtitles for Dune', 'list all indexers', "
                         "'request Inception'"
@@ -164,10 +194,12 @@ class ArrSuiteMCPServer:
                 tools.extend(self._get_prowlarr_tools())
             if "bazarr" in self.clients:
                 tools.extend(self._get_bazarr_tools())
-            if "overseerr" in self.clients:
-                tools.extend(self._get_overseerr_tools())
-            if "plex" in self.clients:
+            if "seerr" in self.clients:
+                tools.extend(self._get_seerr_tools())
+            if self.plex_clients:
                 tools.extend(self._get_plex_tools())
+            if "tracearr" in self.clients:
+                tools.extend(self._get_tracearr_tools())
 
             return tools
 
@@ -193,10 +225,12 @@ class ArrSuiteMCPServer:
                     result = await self._handle_prowlarr_tool(name, arguments)
                 elif name.startswith("bazarr_"):
                     result = await self._handle_bazarr_tool(name, arguments)
-                elif name.startswith("overseerr_"):
-                    result = await self._handle_overseerr_tool(name, arguments)
+                elif name.startswith("seerr_"):
+                    result = await self._handle_seerr_tool(name, arguments)
                 elif name.startswith("plex_"):
                     result = await self._handle_plex_tool(name, arguments)
+                elif name.startswith("tracearr_"):
+                    result = await self._handle_tracearr_tool(name, arguments)
                 else:
                     result = {"error": f"Unknown tool: {name}"}
 
@@ -347,11 +381,11 @@ class ArrSuiteMCPServer:
             ),
         ]
 
-    def _get_overseerr_tools(self) -> list[Tool]:
-        """Get Overseerr-specific tools."""
+    def _get_seerr_tools(self) -> list[Tool]:
+        """Get Seerr-specific tools."""
         return [
             Tool(
-                name="overseerr_search",
+                name="seerr_search",
                 description="Search for movies and TV shows",
                 inputSchema={
                     "type": "object",
@@ -362,7 +396,7 @@ class ArrSuiteMCPServer:
                 }
             ),
             Tool(
-                name="overseerr_request",
+                name="seerr_request",
                 description="Request a movie or TV show",
                 inputSchema={
                     "type": "object",
@@ -375,13 +409,24 @@ class ArrSuiteMCPServer:
                 }
             ),
             Tool(
-                name="overseerr_get_requests",
+                name="seerr_get_requests",
                 description="Get all media requests",
                 inputSchema={
                     "type": "object",
                     "properties": {
                         "filter": {"type": "string", "description": "Filter (pending, approved, available)"}
                     }
+                }
+            ),
+            Tool(
+                name="seerr_approve_request",
+                description="Approve a pending media request by its request ID",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "request_id": {"type": "integer", "description": "The request ID to approve"}
+                    },
+                    "required": ["request_id"]
                 }
             ),
         ]
@@ -392,13 +437,33 @@ class ArrSuiteMCPServer:
         service, operation, context = self.router.route(query)
 
         # Check if service is available
-        if service.value not in self.clients:
+        if service.value not in self.clients and service.value != "plex":
             return {
                 "error": f"{service.value.capitalize()} is not configured",
                 "available_services": list(self.clients.keys())
             }
 
-        client = self.clients[service.value]
+        # Handle Plex with potential server selection
+        if service == ArrService.PLEX:
+            if not self.plex_clients:
+                return {"error": "Plex is not configured"}
+            
+            # Check if query specifies a server (e.g., "search Plex on tank03")
+            server_name = context.get("server")
+            client = self._get_plex_client(server_name)
+            if not client:
+                available = list(self.plex_clients.keys())
+                return {
+                    "error": f"Plex server '{server_name}' not found" if server_name else "No Plex servers configured",
+                    "available_plex_servers": available
+                }
+        else:
+            client = self.clients.get(service.value)
+            if not client:
+                return {
+                    "error": f"{service.value.capitalize()} is not configured",
+                    "available_services": list(self.clients.keys())
+                }
 
         # Execute operation based on service and operation type
         try:
@@ -447,13 +512,13 @@ class ArrSuiteMCPServer:
             elif operation == OperationType.LIST:
                 return await client.get_all_indexers()
 
-        elif service == ArrService.OVERSEERR:
+        elif service == ArrService.SEERR:
             if operation == OperationType.SEARCH:
                 query = context.get("title", "")
                 return await client.search_media(query)
             elif operation == OperationType.REQUEST:
                 # Would need more context to execute
-                return {"message": "Please use overseerr_request tool with media_type and media_id"}
+                return {"message": "Please use seerr_request tool with media_type and media_id"}
 
         elif service == ArrService.PLEX:
             if operation == OperationType.SEARCH:
@@ -477,20 +542,36 @@ class ArrSuiteMCPServer:
 
     def _handle_list_services(self) -> dict[str, Any]:
         """List all configured services."""
+        services = {
+            name: {
+                "configured": name in self.clients,
+                "url": getattr(self.config, name).base_url if hasattr(self.config, name) and getattr(self.config, name) else None
+            }
+            for name in ["sonarr", "radarr", "prowlarr", "bazarr", "seerr"]
+        }
+        
+        # Add Plex servers
+        plex_servers_info = {}
+        for name, client in self.plex_clients.items():
+            plex_config = next((p for p in self.config.plex_servers if p.name == name), None)
+            plex_servers_info[name] = {
+                "configured": True,
+                "url": plex_config.base_url if plex_config else client.base_url
+            }
+        
+        if plex_servers_info:
+            services["plex_servers"] = plex_servers_info
+        
         return {
             "enabled_services": self.config.enabled_services,
-            "services": {
-                name: {
-                    "configured": name in self.clients,
-                    "url": getattr(self.config, name).base_url if hasattr(self.config, name) and getattr(self.config, name) else None
-                }
-                for name in ["sonarr", "radarr", "prowlarr", "bazarr", "overseerr"]
-            }
+            "services": services
         }
 
     async def _handle_system_status(self) -> dict[str, Any]:
         """Get system status for all services."""
         statuses = {}
+        
+        # Handle regular services
         for name, client in self.clients.items():
             try:
                 status = await client.get_system_status()
@@ -503,6 +584,25 @@ class ArrSuiteMCPServer:
                     "online": False,
                     "error": str(e)
                 }
+        
+        # Handle Plex servers
+        if self.plex_clients:
+            plex_statuses = {}
+            for name, client in self.plex_clients.items():
+                try:
+                    status = await client.get_server_identity()
+                    plex_statuses[name] = {
+                        "online": True,
+                        "status": status
+                    }
+                except Exception as e:
+                    plex_statuses[name] = {
+                        "online": False,
+                        "error": str(e)
+                    }
+            if plex_statuses:
+                statuses["plex_servers"] = plex_statuses
+        
         return statuses
 
     async def _handle_sonarr_tool(self, name: str, arguments: dict) -> Any:
@@ -564,83 +664,135 @@ class ArrSuiteMCPServer:
                 arguments["language"]
             )
 
-    async def _handle_overseerr_tool(self, name: str, arguments: dict) -> Any:
-        """Handle Overseerr-specific tools."""
-        client = self.clients["overseerr"]
+    async def _handle_seerr_tool(self, name: str, arguments: dict) -> Any:
+        """Handle Seerr-specific tools."""
+        client = self.clients["seerr"]
 
-        if name == "overseerr_search":
+        if name == "seerr_search":
             return await client.search_media(arguments["query"])
-        elif name == "overseerr_request":
+        elif name == "seerr_request":
             return await client.create_request(**arguments)
-        elif name == "overseerr_get_requests":
+        elif name == "seerr_get_requests":
             return await client.get_requests(filter=arguments.get("filter"))
+        elif name == "seerr_approve_request":
+            return await client.approve_request(arguments["request_id"])
 
     def _get_plex_tools(self) -> list[Tool]:
-        """Get Plex-specific tools."""
+        """Get Plex-specific tools with optional server selection."""
+        plex_servers = list(self.plex_clients.keys())
+        server_description = ""
+        if len(plex_servers) > 1:
+            server_description = f". Available servers: {', '.join(plex_servers)}"
+        
         return [
             Tool(
                 name="plex_get_libraries",
-                description="Get all Plex libraries",
-                inputSchema={"type": "object", "properties": {}}
-            ),
-            Tool(
-                name="plex_search",
-                description="Search Plex for media",
+                description=f"Get all Plex libraries{server_description}",
                 inputSchema={
                     "type": "object",
                     "properties": {
-                        "query": {"type": "string", "description": "Search query"}
+                        "server": {"type": "string", "description": "Plex server name (optional, uses default if not specified)"}
+                    }
+                }
+            ),
+            Tool(
+                name="plex_search",
+                description=f"Search Plex for media{server_description}",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "query": {"type": "string", "description": "Search query"},
+                        "server": {"type": "string", "description": "Plex server name (optional, uses default if not specified)"}
                     },
                     "required": ["query"]
                 }
             ),
             Tool(
                 name="plex_get_recently_added",
-                description="Get recently added media",
+                description=f"Get recently added media{server_description}",
                 inputSchema={
                     "type": "object",
                     "properties": {
-                        "limit": {"type": "integer", "description": "Max items", "default": 50}
+                        "limit": {"type": "integer", "description": "Max items", "default": 50},
+                        "server": {"type": "string", "description": "Plex server name (optional, uses default if not specified)"}
                     }
                 }
             ),
             Tool(
                 name="plex_get_on_deck",
-                description="Get On Deck (in progress) media",
-                inputSchema={"type": "object", "properties": {}}
-            ),
-            Tool(
-                name="plex_get_sessions",
-                description="Get currently playing sessions",
-                inputSchema={"type": "object", "properties": {}}
-            ),
-            Tool(
-                name="plex_scan_library",
-                description="Scan a Plex library for new content",
+                description=f"Get On Deck (in progress) media{server_description}",
                 inputSchema={
                     "type": "object",
                     "properties": {
-                        "section_id": {"type": "integer", "description": "Library section ID"}
+                        "server": {"type": "string", "description": "Plex server name (optional, uses default if not specified)"}
+                    }
+                }
+            ),
+            Tool(
+                name="plex_get_sessions",
+                description=f"Get currently playing sessions{server_description}",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "server": {"type": "string", "description": "Plex server name (optional, uses default if not specified)"}
+                    }
+                }
+            ),
+            Tool(
+                name="plex_scan_library",
+                description=f"Scan a Plex library for new content{server_description}",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "section_id": {"type": "integer", "description": "Library section ID"},
+                        "server": {"type": "string", "description": "Plex server name (optional, uses default if not specified)"}
                     },
                     "required": ["section_id"]
                 }
             ),
             Tool(
                 name="plex_mark_watched",
-                description="Mark media as watched",
+                description=f"Mark media as watched{server_description}",
                 inputSchema={
                     "type": "object",
                     "properties": {
-                        "rating_key": {"type": "string", "description": "Media rating key"}
+                        "rating_key": {"type": "string", "description": "Media rating key"},
+                        "server": {"type": "string", "description": "Plex server name (optional, uses default if not specified)"}
                     },
                     "required": ["rating_key"]
                 }
             ),
+            Tool(
+                name="plex_list_servers",
+                description="List all configured Plex servers",
+                inputSchema={"type": "object", "properties": {}}
+            ),
         ]
 
     async def _handle_plex_tool(self, name: str, arguments: dict) -> Any:
-        """Handle Plex-specific tools."""
-        client = self.clients["plex"]
+        """Handle Plex-specific tools with server selection."""
+        if name == "plex_list_servers":
+            return {
+                "servers": [
+                    {
+                        "name": name,
+                        "host": config.host,
+                        "port": config.port
+                    }
+                    for name, config in [(p.name, p) for p in self.config.plex_servers]
+                ]
+            }
+        
+        # Get server name from arguments (optional)
+        server_name = arguments.get("server")
+        client = self._get_plex_client(server_name)
+        
+        if not client:
+            available = list(self.plex_clients.keys())
+            return {
+                "error": f"Plex server '{server_name}' not found" if server_name else "No Plex servers configured",
+                "available_servers": available
+            }
 
         if name == "plex_get_libraries":
             return await client.get_libraries()
@@ -667,6 +819,88 @@ class ArrSuiteMCPServer:
                 write_stream,
                 self.server.create_initialization_options()
             )
+
+
+    def _get_tracearr_tools(self) -> list[Tool]:
+        """Get Tracearr tools for streaming access management."""
+        return [
+            Tool(
+                name="tracearr_streams",
+                description="List currently active Plex/Jellyfin streams across all servers",
+                inputSchema={"type": "object", "properties": {}}
+            ),
+            Tool(
+                name="tracearr_stats",
+                description="Get Tracearr dashboard stats: active streams, total users, recent violations",
+                inputSchema={"type": "object", "properties": {}}
+            ),
+            Tool(
+                name="tracearr_users",
+                description="List Tracearr-tracked users with trust scores and violation counts",
+                inputSchema={"type": "object", "properties": {}}
+            ),
+            Tool(
+                name="tracearr_violations",
+                description="List account-sharing violations detected by Tracearr",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "limit": {"type": "integer", "default": 25},
+                        "resolved": {"type": "boolean", "description": "Filter by resolved status (omit for all)"}
+                    }
+                }
+            ),
+            Tool(
+                name="tracearr_history",
+                description="Get Tracearr session history with optional username filter",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "limit": {"type": "integer", "default": 25},
+                        "username": {"type": "string", "description": "Filter by username"}
+                    }
+                }
+            ),
+            Tool(
+                name="tracearr_terminate",
+                description="Terminate an active stream by session ID",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "stream_id": {"type": "string", "description": "Session ID from tracearr_streams"},
+                        "reason": {"type": "string", "description": "Reason message shown to user"}
+                    },
+                    "required": ["stream_id"]
+                }
+            ),
+        ]
+
+    async def _handle_tracearr_tool(self, name: str, arguments: dict) -> Any:
+        """Handle Tracearr tool calls."""
+        client: TracearrClient = self.clients["tracearr"]
+
+        if name == "tracearr_streams":
+            return await client.streams()
+        elif name == "tracearr_stats":
+            return await client.stats()
+        elif name == "tracearr_users":
+            return await client.users()
+        elif name == "tracearr_violations":
+            return await client.violations(
+                limit=arguments.get("limit", 25),
+                resolved=arguments.get("resolved"),
+            )
+        elif name == "tracearr_history":
+            return await client.history(
+                limit=arguments.get("limit", 25),
+                username=arguments.get("username"),
+            )
+        elif name == "tracearr_terminate":
+            return await client.terminate_stream(
+                stream_id=arguments["stream_id"],
+                reason=arguments.get("reason"),
+            )
+        return {"error": f"Unknown tracearr tool: {name}"}
 
 
 def main():
