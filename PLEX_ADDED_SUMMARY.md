@@ -97,7 +97,7 @@ Keywords that trigger Plex:
 Complete workflow support:
 
 ```
-1. Request via Overseerr → "Request The Matrix"
+1. Request via Seerr → "Request The Matrix"
 2. Download via Radarr   → Auto-download
 3. Auto-add to Plex      → Library updated
 4. Search and play       → "Search Plex for The Matrix"
@@ -229,9 +229,9 @@ The Plex integration is production-ready and includes:
 - ✅ Performance optimization
 
 Ready for:
-- Testing with real Plex servers
 - Integration with Claude Desktop
 - Submission to MCP registry
+- Use via mcpo + OpenWebUI
 
 ## Testing Checklist
 
