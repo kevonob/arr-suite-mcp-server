@@ -5,14 +5,17 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "arr-suite-mcp"
 version = "1.0.0"
-description = "Intelligent MCP server for Plex and the complete *arr media automation suite (Sonarr, Radarr, Prowlarr, Bazarr, Overseerr)"
+description = "Intelligent MCP server for Plex and the complete *arr media automation suite (Sonarr, Radarr, Prowlarr, Bazarr, Seerr)"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
 authors = [
-    { name = "Arr Suite MCP Contributors" }
+    { name = "obeewan", email = "kevono@gmail.com" }
 ]
-keywords = ["mcp", "sonarr", "radarr", "prowlarr", "bazarr", "overseerr", "media", "automation"]
+maintainers = [
+    { name = "obeewan", email = "kevono@gmail.com" }
+]
+keywords = ["mcp", "sonarr", "radarr", "prowlarr", "bazarr", "seerr", "media", "automation"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
@@ -45,13 +48,13 @@ dev = [
 arr-suite-mcp = "arr_suite_mcp.server:main"
 
 [project.urls]
-Homepage = "https://github.com/shaktech786/arr-suite-mcp-server"
-Documentation = "https://github.com/shaktech786/arr-suite-mcp-server#readme"
-Repository = "https://github.com/shaktech786/arr-suite-mcp-server"
-Issues = "https://github.com/shaktech786/arr-suite-mcp-server/issues"
+Homepage = "https://github.com/kevonob/arr-suite-mcp-server"
+Documentation = "https://github.com/kevonob/arr-suite-mcp-server#readme"
+Repository = "https://github.com/kevonob/arr-suite-mcp-server"
+Issues = "https://github.com/kevonob/arr-suite-mcp-server/issues"
 
-[tool.setuptools]
-packages = ["arr_suite_mcp"]
+[tool.setuptools.packages.find]
+where = ["."]
 
 [tool.black]
 line-length = 100
